@@ -123,6 +123,7 @@ func (a *analysisJobAggregator) FindRelatedJobs(ctx context.Context) ([]jobrunag
 			}
 
 			payloadTag := GetPayloadTagFromProwJob(prowJob)
+			fmt.Printf("  checking %v/%v for payloadtag match: looking for %q found %q.\n", a.jobName, jobRunId, a.payloadTag, payloadTag)
 			if payloadTag == a.payloadTag {
 				relatedJobRuns = append(relatedJobRuns, jobRunInfo)
 			}
