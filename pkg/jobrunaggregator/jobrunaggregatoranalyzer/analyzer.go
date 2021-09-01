@@ -41,10 +41,10 @@ type JobRunAggregatorAnalyzerOptions struct {
 	timeout             time.Duration
 }
 
-func (o *JobRunAggregatorAnalyzerOptions) getFinishedRelatedJobs(ctx context.Context) ([]jobrunaggregatorapi.JobRunInfo, error) {
+func (o *JobRunAggregatorAnalyzerOptions) getRelatedJobs(ctx context.Context) ([]jobrunaggregatorapi.JobRunInfo, error) {
 	errorsInARow := 0
 	for {
-		jobsToAggregate, err := o.getFinishedRelatedJobsRightNow(ctx)
+		jobsToAggregate, err := o.jobRunLocator.FindRelatedJobs(ctx)
 		if err == nil {
 			return jobsToAggregate, nil
 		}
@@ -68,29 +68,6 @@ func (o *JobRunAggregatorAnalyzerOptions) getFinishedRelatedJobs(ctx context.Con
 	return nil, fmt.Errorf("how on earth did we get here??")
 }
 
-func (o *JobRunAggregatorAnalyzerOptions) getFinishedRelatedJobsRightNow(ctx context.Context) ([]jobrunaggregatorapi.JobRunInfo, error) {
-	jobsToAggregate, err := o.jobRunLocator.FindRelatedJobs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	notCompletedJobs := []string{}
-	for _, currJob := range jobsToAggregate {
-		prowJob, err := currJob.GetProwJob(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if prowJob.Status.CompletionTime == nil {
-			notCompletedJobs = append(notCompletedJobs, currJob.GetJobRunID())
-		}
-	}
-
-	if len(notCompletedJobs) > 0 {
-		return nil, fmt.Errorf("%v are not completed", strings.Join(notCompletedJobs, ","))
-	}
-	return jobsToAggregate, nil
-}
-
 func (o *JobRunAggregatorAnalyzerOptions) Run(ctx context.Context) error {
 	fmt.Printf("Aggregating job runs of type %q for %q.\n", o.jobName, o.payloadTag)
 	ctx, cancel := context.WithTimeout(ctx, o.timeout)
@@ -102,30 +79,61 @@ func (o *JobRunAggregatorAnalyzerOptions) Run(ctx context.Context) error {
 	}
 
 	// if it hasn't been more than hour since the jobRuns started, the list isn't complete.
-	// wait until we're ready
-	now := o.clock.Now()
 	readyAt := o.jobRunStartEstimate.Add(1 * time.Hour)
-	if readyAt.After(now) {
-		timeToWait := readyAt.Sub(now)
-		fmt.Printf("Waiting for %v until %v.\n", timeToWait, readyAt)
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(timeToWait):
+	finishedJobsToAggregate := []jobrunaggregatorapi.JobRunInfo{}
+	finishedJobRunNames := []string{}
+	for { // TODO extract to a method.
+		fmt.Println() // for prettier logs
+		// reset vars
+		finishedJobsToAggregate = []jobrunaggregatorapi.JobRunInfo{}
+		finishedJobRunNames = []string{}
+
+		relatedJobs, err := o.getRelatedJobs(ctx)
+		if err != nil {
+			return err
 		}
+		fmt.Printf("%q for %q: found %d jobRuns.\n", o.jobName, o.payloadTag, len(relatedJobs))
+
+		if o.clock.Now().Before(readyAt) {
+			fmt.Printf("%q for %q: waiting to collect more jobRuns before assessing finished or not.\n", o.jobName, o.payloadTag)
+			continue
+		}
+		if len(relatedJobs) == 0 {
+			return fmt.Errorf("%q for %q: found no jobRuns", o.jobName, o.payloadTag)
+		}
+
+		unfinishedJobNames := []string{}
+		for i := range relatedJobs {
+			relatedJob := relatedJobs[i]
+			prowJob, err := relatedJob.GetProwJob(ctx)
+			if err != nil {
+				fmt.Printf("error reading prowjob %v: %v\n", relatedJob.GetJobRunID(), err)
+				unfinishedJobNames = append(unfinishedJobNames, relatedJob.GetJobRunID())
+			}
+
+			if prowJob.Status.CompletionTime == nil {
+				unfinishedJobNames = append(unfinishedJobNames, relatedJob.GetJobRunID())
+				continue
+			}
+			finishedJobsToAggregate = append(finishedJobsToAggregate, relatedJob)
+			finishedJobRunNames = append(finishedJobRunNames, relatedJob.GetJobRunID())
+		}
+
+		if len(unfinishedJobNames) > 0 {
+			fmt.Printf("%q for %q: found %d unfinished jobRuns: %v\n", o.jobName, o.payloadTag, len(relatedJobs), strings.Join(unfinishedJobNames, ", "))
+			continue
+		}
+
+		break
 	}
 
-	jobsToAggregate, err := o.getFinishedRelatedJobs(ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%q for %q: found %d jobRuns.\n", o.jobName, o.payloadTag, len(jobsToAggregate))
+	fmt.Printf("%q for %q: aggregating %d jobRuns: %v\n", o.jobName, o.payloadTag, len(finishedJobsToAggregate), strings.Join(finishedJobRunNames, ", "))
 
 	aggregationConfiguration := &AggregationConfiguration{}
 	currentAggregationJunit := &aggregatedJobRunJunit{}
-	for i := range jobsToAggregate {
-		jobRun := jobsToAggregate[i]
+	for i := range finishedJobsToAggregate {
+		jobRun := finishedJobsToAggregate[i]
 		currJunit, err := newJobRunJunit(ctx, jobRun)
 		if err != nil {
 			return err
