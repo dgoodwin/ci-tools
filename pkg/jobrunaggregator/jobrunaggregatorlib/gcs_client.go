@@ -175,8 +175,12 @@ func (o *ciGCSClient) ReadJobRunFromGCS(ctx context.Context, jobName, jobRunID s
 	}
 
 	// eliminate items without prowjob.json and ones that aren't finished
-	if len(jobRun.GetGCSProwJobPath()) == 0 {
+	if jobRun == nil {
 		fmt.Printf("Removing %q/%q because it doesn't have a prowjob.json\n", jobName, jobRunID)
+		return nil, nil
+	}
+	if len(jobRun.GetGCSProwJobPath()) == 0 {
+		fmt.Printf("Removing %q/%q because it doesn't have a prowjob.json but does have junit\n", jobName, jobRunID)
 		return nil, nil
 	}
 	_, err := jobRun.GetProwJob(ctx)
