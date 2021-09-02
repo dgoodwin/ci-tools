@@ -87,7 +87,7 @@ func (a *analysisJobAggregator) FindRelatedJobs(ctx context.Context) ([]jobrunag
 	} else {
 		query.StartOffset = fmt.Sprintf("logs/%s/%s", a.jobName, startingJobRun.Name)
 	}
-	if endingJobRun != nil {
+	if false && endingJobRun != nil {
 		query.EndOffset = fmt.Sprintf("logs/%s/%s", a.jobName, endingJobRun.Name)
 	}
 	fmt.Printf("  starting from %v, ending at %q\n", query.StartOffset, query.EndOffset)
