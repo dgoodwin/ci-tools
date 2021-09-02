@@ -63,7 +63,7 @@ func (a *analysisJobAggregator) FindRelatedJobs(ctx context.Context) ([]jobrunag
 	if err != nil {
 		return nil, err
 	}
-	endingJobRun, err := a.ciDataClient.GetJobRunForJobNameBeforeTime(ctx, a.jobName, endOfJobRunWindow)
+	endingJobRun, err := a.ciDataClient.GetJobRunForJobNameAfterTime(ctx, a.jobName, endOfJobRunWindow)
 	if err != nil {
 		return nil, err
 	}
