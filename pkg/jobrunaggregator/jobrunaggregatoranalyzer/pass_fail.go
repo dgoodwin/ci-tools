@@ -6,14 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	"github.com/openshift/ci-tools/pkg/jobrunaggregator/jobrunaggregatorapi"
-
 	"github.com/openshift/ci-tools/pkg/jobrunaggregator/jobrunaggregatorlib"
-
 	"github.com/openshift/ci-tools/pkg/junit"
 	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type baseline interface {
@@ -145,10 +142,11 @@ func (a *weeklyAverageFromTenDays) FailureMessage(ctx context.Context, suiteName
 	numberOfPasses := getNumberOfPasses(testCaseDetails)
 	numberOfFailures := getNumberOfFailures(testCaseDetails)
 	if numberOfAttempts < a.minimumNumberOfAttempts {
-		return fmt.Sprintf("Passed %d times, failed %d times, skipped %d times: we require at least five attempts to have a chance at success",
+		return fmt.Sprintf("Passed %d times, failed %d times, skipped %d times: we require at least %d attempts to have a chance at success",
 			numberOfPasses,
 			numberOfFailures,
 			len(testCaseDetails.Skips),
+			a.minimumNumberOfAttempts,
 		), nil
 	}
 	if len(testCaseDetails.Passes) < 1 {
@@ -165,16 +163,18 @@ func (a *weeklyAverageFromTenDays) FailureMessage(ctx context.Context, suiteName
 	}
 
 	averageTestResult, ok := aggregatedTestRunsByName[testCaseDetails.Name]
+	workingPercentage := 70 // choosing 70% as the default because... it sounds goodish
 	if !ok {
-		return fmt.Sprintf("missing historical data for %v", testCaseDetails.Name), nil
+		fmt.Printf("missing historical data for %v, arbitrarily assigning 70%% because David thought it was better than failing\n", testCaseDetails.Name)
 	}
+	workingPercentage = averageTestResult.WorkingPercentage
 
-	requiredNumberOfPasses := requiredPassesByPassPercentageByNumberOfAttempts[numberOfAttempts][averageTestResult.WorkingPercentage]
+	requiredNumberOfPasses := requiredPassesByPassPercentageByNumberOfAttempts[numberOfAttempts][workingPercentage]
 	if numberOfPasses < requiredNumberOfPasses {
 		return fmt.Sprintf("Passed %d times, failed %d times.  The historical pass rate is %d.  The required number of passes is %d.",
 			numberOfPasses,
 			numberOfFailures,
-			averageTestResult.WorkingPercentage,
+			workingPercentage,
 			requiredNumberOfPasses,
 		), nil
 
