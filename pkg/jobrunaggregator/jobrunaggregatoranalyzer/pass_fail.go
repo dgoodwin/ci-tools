@@ -134,11 +134,21 @@ func (a *weeklyAverageFromTenDays) getAggregatedTestRuns(ctx context.Context) (m
 }
 
 func (a *weeklyAverageFromTenDays) FailureMessage(ctx context.Context, suiteNames []string, testCaseDetails *TestCaseDetails) (string, error) {
+	if alwaysPassTests.Has(testCaseDetails.Name) {
+		fmt.Printf("always passing %q\n", testCaseDetails.Name)
+		return "", nil
+	}
 	if !didTestRun(testCaseDetails) {
 		return "", nil
 	}
-
 	numberOfAttempts := getAttempts(testCaseDetails)
+
+	// if most of the job runs skipped this test, then we probably intend to skip the test overall and the failure is actually
+	// due to some kind of "couldn't detect that I should skip".
+	if len(testCaseDetails.Passes) == 0 && len(testCaseDetails.Skips) > len(testCaseDetails.Failures) {
+		return "", nil
+	}
+
 	numberOfPasses := getNumberOfPasses(testCaseDetails)
 	numberOfFailures := getNumberOfFailures(testCaseDetails)
 	if numberOfAttempts < a.minimumNumberOfAttempts {
@@ -182,6 +192,14 @@ func (a *weeklyAverageFromTenDays) FailureMessage(ctx context.Context, suiteName
 
 	return "", nil
 }
+
+var (
+	alwaysPassTests = sets.NewString(
+		// used to aggregate overall upgrade result for a single job.  Since we aggregated all the junits, we don't care about this
+		// sub-aggregation. The analysis job runs can all fail on different tests, but the aggregated job will succeed.
+		`Run multi-stage test e2e-gcp-upgrade - e2e-gcp-upgrade-openshift-e2e-test container test`,
+	)
+)
 
 var (
 	requiredPassesByPassPercentageFor_10_Attempts = []int{

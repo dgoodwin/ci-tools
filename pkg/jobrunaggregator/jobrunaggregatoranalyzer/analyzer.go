@@ -187,6 +187,11 @@ func (o *JobRunAggregatorAnalyzerOptions) Run(ctx context.Context) error {
 	fakeSuite := &junit.TestSuite{Children: currentAggregationJunitSuites.Suites}
 	outputTestCaseFailures([]string{"root"}, fakeSuite)
 
+	if hasFailedTestCase(fakeSuite) {
+		// we already indicated failure messages above
+		return fmt.Errorf("Some tests failed aggregation.  See above for details.")
+	}
+
 	return nil
 }
 
@@ -209,4 +214,20 @@ func outputTestCaseFailures(parents []string, suite *junit.TestSuite) {
 	for _, child := range suite.Children {
 		outputTestCaseFailures(currSuite, child)
 	}
+}
+
+func hasFailedTestCase(suite *junit.TestSuite) bool {
+	for _, testCase := range suite.TestCases {
+		if testCase.FailureOutput != nil {
+			return true
+		}
+	}
+
+	for _, child := range suite.Children {
+		if hasFailedTestCase(child) {
+			return true
+		}
+	}
+
+	return false
 }
