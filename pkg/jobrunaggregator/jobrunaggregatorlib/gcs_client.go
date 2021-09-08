@@ -13,6 +13,8 @@ import (
 	"google.golang.org/api/iterator"
 )
 
+//go:generate mockgen -source=./gcs_client.go -destination=./mock/gcs_client_generated.go -package=mock
+
 type CIGCSClient interface {
 	ReadJobRunFromGCS(ctx context.Context, jobName, jobRunID string) (jobrunaggregatorapi.JobRunInfo, error)
 

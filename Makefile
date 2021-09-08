@@ -229,6 +229,7 @@ check-breaking-changes:
 generate: imports
 	hack/update-codegen.sh
 	hack/generate-ci-op-reference.sh
+	go generate ./pkg/...
 
 .PHONY: imports
 imports:
