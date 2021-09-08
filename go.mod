@@ -37,6 +37,7 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/getlantern/deepcopy v0.0.0-20160317154340-7f45deb8130a
 	github.com/ghodss/yaml v1.0.0
+	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.5
 	github.com/google/gofuzz v1.2.1-0.20210504230335-f78f29fc09ea
 	github.com/hashicorp/go-retryablehttp v0.6.6
@@ -69,7 +70,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/api v0.32.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
