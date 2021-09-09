@@ -117,12 +117,15 @@ func (o *jobLoaderOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Got lastJobRun")
 	startingJobRunID := "0"
 	if lastJobRun != nil {
 		startingJobRunID = jobrunaggregatorlib.NextJobRunID(lastJobRun.Name)
 	}
 
+	fmt.Println("ListingJobRunNames")
 	jobRunProcessingCh, errorCh, err := o.gcsClient.ListJobRunNames(ctx, o.jobName, startingJobRunID)
+	fmt.Println("got job run names")
 
 	insertionErrorLock := sync.Mutex{}
 	insertionErrors := []error{}
@@ -142,25 +145,31 @@ func (o *jobLoaderOptions) Run(ctx context.Context) error {
 	currentUploaders := sync.WaitGroup{}
 	close(lastDoneUploadingCh)
 	for jobRunID := range jobRunProcessingCh {
+		fmt.Printf("Processing jobRunID: %s\n", jobRunID)
 		jobRunInserter := o.newJobRunLoaderOptions(jobRunID, lastDoneUploadingCh)
 		lastDoneUploadingCh = jobRunInserter.doneUploading
 
 		if err := concurrentWorkers.Acquire(ctx, 1); err != nil {
+			fmt.Println("acquire err, context is done")
 			// this means the context is done
 			return err
 		}
+		fmt.Println("acquired concurrent worker semaphore")
 
 		currentUploaders.Add(1)
 		go func() {
 			defer concurrentWorkers.Release(1)
 			defer currentUploaders.Done()
 
+			fmt.Println("jobRunInster.Run()")
 			if err := jobRunInserter.Run(ctx); err != nil {
 				errorCh <- err
 			}
 		}()
 	}
+	fmt.Println("waiting for concurrentUploaders")
 	currentUploaders.Wait()
+	fmt.Println("past wait for concurrentUploaders")
 
 	// at this point we're done finding new jobs (jobRunProcessingCh is closed) and we've finished all jobRun insertions
 	// (the waitGroup is done).  This means all error reporting is finished, so close the errorCh, then wait to complete
